@@ -221,17 +221,6 @@ class TextTestResult(result.TestResult):
                 reverse=True,
                 key=lambda k: k['elapsed'])[:self.slow_test_count]
 
-        if self.showAll:
-            self.stream.writeln(
-                "[..%04d <- %04d] Elapsed: %s; Remaining: %s; %s] " % (
-                    self.current_test_number-1,
-                    self.total_tests,
-                    self.format_time(self._elapsed_time),
-                    self.format_time(self._estimated_time),
-                    self._results_breakdown()
-                )
-            )
-
     def startTest(self, test):
 
         self.test_start_time = time.time()
