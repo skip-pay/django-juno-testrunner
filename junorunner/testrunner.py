@@ -1,5 +1,8 @@
 from __future__ import print_function
 
+from django.db import connections
+from django.core import management
+
 from .runner import JunoDiscoverRunner
 
 

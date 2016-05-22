@@ -2,6 +2,8 @@ import os
 
 from django.test.runner import DiscoverRunner
 from django.test.runner import reorder_suite
+from django.core import management
+from django.conf import settings
 
 from junorunner.extended_runner import TextTestRunner
 
