@@ -20,27 +20,21 @@ class JunoDiscoverRunner(DiscoverRunner):
         return TextTestRunner(
             verbosity=self.verbosity,
             failfast=self.failfast,
-            total_tests=len(suite._tests),
+            total_tests=suite.total_tests,
             slow_test_count=self.slow_test_count
         ).run(suite)
 
-    def build_suite(self, test_labels=None, extra_tests=None, **kwargs):
-        suite = TestSuite()
+    def _parse_labels_and_methods(self, test_labels):
         test_labels = test_labels or ['.']
-        extra_tests = extra_tests or []
 
         input_test_labels = ','.join(test_labels).split(':', 1)
         if len(input_test_labels) == 2:
-            test_labels, methods = map(lambda vals: [val for val in vals.split(',') if val], input_test_labels)
+            return map(lambda vals: [val for val in vals.split(',') if val], input_test_labels)
         else:
-            test_labels, methods = input_test_labels[0].split(','), []
+            return input_test_labels[0].split(','), []
 
-        discover_kwargs = {}
-        if self.pattern is not None:
-            discover_kwargs['pattern'] = self.pattern
-        if self.top_level is not None:
-            discover_kwargs['top_level_dir'] = self.top_level
-
+    def _get_suite(self, test_labels, discover_kwargs, extra_tests, methods):
+        suite = TestSuite()
         for label in test_labels:
             kwargs = discover_kwargs.copy()
             tests = None
@@ -90,8 +84,42 @@ class JunoDiscoverRunner(DiscoverRunner):
 
         for test in extra_tests:
             suite.addTest(test)
+        return suite
 
-        return reorder_suite(suite, self.reorder_by)
+    def _get_parallel_suite(self, suite):
+        if self.parallel > 1:
+            parallel_suite = self.parallel_test_suite(suite, self.parallel, self.failfast)
+
+            # Since tests are distributed across processes on a per-TestCase
+            # basis, there's no need for more processes than TestCases.
+            parallel_units = len(parallel_suite.subsuites)
+            if self.parallel > parallel_units:
+                self.parallel = parallel_units
+
+            # If there's only one TestCase, parallelization isn't needed.
+            if self.parallel > 1:
+                return parallel_suite
+        return suite
+
+    def build_suite(self, test_labels=None, extra_tests=None, **kwargs):
+        extra_tests = extra_tests or []
+        test_labels, methods = self._parse_labels_and_methods(test_labels)
+
+        discover_kwargs = {}
+        if self.pattern is not None:
+            discover_kwargs['pattern'] = self.pattern
+        if self.top_level is not None:
+            discover_kwargs['top_level_dir'] = self.top_level
+
+        suite = self._get_suite(test_labels, discover_kwargs, extra_tests, methods)
+        if self.tags or self.exclude_tags:
+            suite = filter_tests_by_tags(suite, self.tags, self.exclude_tags)
+        suite = reorder_suite(suite, self.reorder_by, self.reverse)
+
+        total_tests = len(suite._tests)
+        suite = self._get_parallel_suite(suite)
+        suite.total_tests = total_tests
+        return suite
 
     def get_tests_defined_in_methods_or_none(self, tests, methods):
         if not methods:
