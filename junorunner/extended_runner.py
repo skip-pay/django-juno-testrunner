@@ -15,18 +15,13 @@ import colorama
 
 try:
     # Django 1.6
-    from django.utils.unittest import result
-except ImportError:
-    # Django 1.7+ because bundled unittest is going away
     from unittest import result
+except ImportError:
+    # Django 1.6
+    from django.utils.unittest import result
 
 from django.conf import settings
 
-try:
-    from django.utils.unittest.signals import registerResult
-except ImportError:
-    def registerResult(_):
-        pass
 
 __unittest = True
 
@@ -221,17 +216,6 @@ class TextTestResult(result.TestResult):
                 reverse=True,
                 key=lambda k: k['elapsed'])[:self.slow_test_count]
 
-        if self.showAll:
-            self.stream.writeln(
-                "[..%04d <- %04d] Elapsed: %s; Remaining: %s; %s] " % (
-                    self.current_test_number-1,
-                    self.total_tests,
-                    self.format_time(self._elapsed_time),
-                    self.format_time(self._estimated_time),
-                    self._results_breakdown()
-                )
-            )
-
     def startTest(self, test):
 
         self.test_start_time = time.time()
@@ -388,7 +372,6 @@ class TextTestRunner(unittest.TextTestRunner):
         result = self._makeResult()
         result.failfast = self.failfast
         result.buffer = self.buffer
-        registerResult(result)
 
         startTime = time.time()
         startTestRun = getattr(result, 'startTestRun', None)

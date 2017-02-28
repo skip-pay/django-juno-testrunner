@@ -1,5 +1,8 @@
 from __future__ import print_function
 
+from django.db import connections
+from django.core import management
+
 from .runner import JunoDiscoverRunner
 
 
@@ -34,8 +37,6 @@ class TestSuiteRunner(JunoDiscoverRunner):
         """
         Run the unit tests for all the test labels in the provided list.
         """
-
-
 
         self.setup_test_environment()
         suite = self.build_suite(test_labels, extra_tests)
