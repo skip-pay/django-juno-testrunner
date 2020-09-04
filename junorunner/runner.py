@@ -8,6 +8,7 @@ from django.conf import settings
 from junorunner.extended_runner import TextTestRunner
 
 from unittest.suite import TestSuite
+from unittest import loader
 
 
 class JunoDiscoverRunner(DiscoverRunner):
@@ -133,6 +134,8 @@ class JunoDiscoverRunner(DiscoverRunner):
                         returned_tests.append(returned_test)
                 return TestSuite(returned_tests)
             elif tests._testMethodName in methods:
+                return tests
+            elif isinstance(tests, loader._FailedTest):
                 return tests
             else:
                 return None
