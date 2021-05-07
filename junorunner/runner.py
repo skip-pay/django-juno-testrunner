@@ -27,7 +27,6 @@ class JunoDiscoverRunner(DiscoverRunner):
 
     def _parse_labels_and_methods(self, test_labels):
         test_labels = test_labels or ['.']
-
         input_test_labels = ','.join(test_labels).split(':', 1)
         if len(input_test_labels) == 2:
             return map(lambda vals: [val for val in vals.split(',') if val], input_test_labels)
