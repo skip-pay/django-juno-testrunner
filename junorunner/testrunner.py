@@ -1,9 +1,15 @@
-from __future__ import print_function
-
 from django.db import connections
+from django.conf import settings
 from django.core import management
 
 from .runner import JunoDiscoverRunner
+
+
+RERUN_LOG_FILE_NAME = getattr(
+    settings,
+    'TEST_RUNNER_RERUN_LOG_FILE_NAME',
+    'test_rerun.txt'
+)
 
 
 class TestSuiteRunner(JunoDiscoverRunner):
@@ -21,7 +27,8 @@ class TestSuiteRunner(JunoDiscoverRunner):
 
     def __init__(self, *args, **kwargs):
         self.slow_test_count = int(kwargs.get('slow_test_count', 0))
-        super(TestSuiteRunner, self).__init__(*args, **kwargs)
+        self.only_failed = kwargs.get('only_failed', False)
+        super().__init__(*args, **kwargs)
 
     @classmethod
     def add_arguments(cls, parser):
@@ -30,7 +37,11 @@ class TestSuiteRunner(JunoDiscoverRunner):
             action='store',
             dest='slow_test_count',
             default=0,
-            help="Print given number of slowest tests"
+            help='Print given number of slowest tests'
+        )
+        parser.add_argument('--only-failed',
+            action='store_true',
+            help='Run only failed tests'
         )
 
     def run_tests(self, test_labels, extra_tests=None, **kwargs):
@@ -38,10 +49,15 @@ class TestSuiteRunner(JunoDiscoverRunner):
         Run the unit tests for all the test labels in the provided list.
         """
 
+        if self.only_failed:
+            with open(RERUN_LOG_FILE_NAME, 'r') as f:
+                test_labels = f.read().split('\n')
+            test_labels += [':']
+
         self.setup_test_environment()
         suite = self.build_suite(test_labels, extra_tests)
 
-        print("%i tests found" % len(suite._tests))
+        print('%i tests found' % len(suite._tests))
 
         old_config = self.setup_databases()
         result = self.run_suite(suite)
