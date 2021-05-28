@@ -81,7 +81,7 @@ class TextTestResult(result.TestResult):
         True
     )
 
-    def __init__(self, stream, descriptions, verbosity, total_tests=None, slow_test_count=10):
+    def __init__(self, stream, descriptions, verbosity, total_tests=None, slow_test_count=10, use_log_files=True):
         super(TextTestResult, self).__init__()
         self.stream = stream
         self.showAll = verbosity > 1
@@ -92,8 +92,12 @@ class TextTestResult(result.TestResult):
         self.total_tests = total_tests
         self.current_test_number = 1
         self.slow_test_count = slow_test_count
-
-        self.openLogFiles()
+        self.rerun_log_file = None
+        self.rerun_log_stream = None
+        self.error_log_file = None
+        self.error_log_stream = None
+        if use_log_files:
+            self.openLogFiles()
 
     def startTestRun(self):
         super(TextTestResult, self).startTestRun()
@@ -115,19 +119,21 @@ class TextTestResult(result.TestResult):
             self.rerun_log_file,
             self.error_log_file
         ]:
-            try:
-                _file.close()
-            except AttributeError:
-                pass
+            if _file is not None:
+                try:
+                    _file.close()
+                except AttributeError:
+                    pass
 
     def addtoErrorLog(self, test, formatted_error):
-        self.error_log_stream.writeln(
-            str("%s %s\n%s\n") % (
-                str(self.getDescription(test)),
-                str(formatted_error),
-                str(self.separator2)
+        if self.error_log_stream:
+            self.error_log_stream.writeln(
+                str("%s %s\n%s\n") % (
+                    str(self.getDescription(test)),
+                    str(formatted_error),
+                    str(self.separator2)
+                )
             )
-        )
 
     def addToReRunLog(self, errorholder):
         """
@@ -140,7 +146,8 @@ class TextTestResult(result.TestResult):
                 errorholder.__class__.__name__,
                 errorholder._testMethodName,
             )
-            self.rerun_log_stream.writeln(incantation_string)
+            if self.rerun_log_stream:
+                self.rerun_log_stream.writeln(incantation_string)
         else:
             self.addtoErrorLog(
                 errorholder,
@@ -346,7 +353,8 @@ class TextTestRunner(unittest.TextTestRunner):
             buffer=False,
             resultclass=None,
             total_tests=None,
-            slow_test_count=0
+            slow_test_count=0,
+            use_log_files=True
     ):
         self.stream = _WritelnDecorator(stream)
         self.descriptions = descriptions
@@ -357,6 +365,7 @@ class TextTestRunner(unittest.TextTestRunner):
             self.resultclass = resultclass
         self.total_tests = total_tests
         self.slow_test_count = slow_test_count
+        self.use_log_files = use_log_files
 
     def _makeResult(self):
         return self.resultclass(
@@ -364,7 +373,8 @@ class TextTestRunner(unittest.TextTestRunner):
             self.descriptions,
             self.verbosity,
             total_tests=self.total_tests,
-            slow_test_count=self.slow_test_count
+            slow_test_count=self.slow_test_count,
+            use_log_files=self.use_log_files
         )
 
     def run(self, test):

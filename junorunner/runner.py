@@ -17,12 +17,17 @@ class JunoDiscoverRunner(DiscoverRunner):
     is the use of the custom TextTestRunner, which we hook in via run_suite()
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.use_log_files = not self.failfast
+
     def run_suite(self, suite, **kwargs):
         return TextTestRunner(
             verbosity=self.verbosity,
             failfast=self.failfast,
             total_tests=suite.total_tests,
-            slow_test_count=self.slow_test_count
+            slow_test_count=self.slow_test_count,
+            use_log_files=self.use_log_files
         ).run(suite)
 
     def _parse_labels_and_methods(self, test_labels):
@@ -104,6 +109,9 @@ class JunoDiscoverRunner(DiscoverRunner):
     def build_suite(self, test_labels=None, extra_tests=None, **kwargs):
         extra_tests = extra_tests or []
         test_labels, methods = self._parse_labels_and_methods(test_labels)
+
+        if methods:
+            self.use_log_files = False
 
         discover_kwargs = {}
         if self.pattern is not None:
