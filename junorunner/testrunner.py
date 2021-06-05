@@ -28,20 +28,30 @@ class TestSuiteRunner(JunoDiscoverRunner):
     def __init__(self, *args, **kwargs):
         self.slow_test_count = int(kwargs.get('slow_test_count', 0))
         self.only_failed = kwargs.get('only_failed', False)
+        self.methods = kwargs.get('methods', None)
         super().__init__(*args, **kwargs)
 
     @classmethod
     def add_arguments(cls, parser):
         super(TestSuiteRunner, cls).add_arguments(parser)
-        parser.add_argument('-s', '--slow-tests',
+        parser.add_argument(
+            '-s', '--slow-tests',
             action='store',
             dest='slow_test_count',
             default=0,
             help='Print given number of slowest tests'
         )
-        parser.add_argument('--only-failed',
+        parser.add_argument(
+            '--only-failed',
             action='store_true',
             help='Run only failed tests'
+        )
+        parser.add_argument(
+            '--methods',
+            action='store',
+            dest='methods',
+            default=None,
+            help='List of test method names to run'
         )
 
     def run_tests(self, test_labels, extra_tests=None, **kwargs):
