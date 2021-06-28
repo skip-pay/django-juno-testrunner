@@ -30,14 +30,6 @@ class JunoDiscoverRunner(DiscoverRunner):
             use_log_files=self.use_log_files
         ).run(suite)
 
-    def _parse_labels_and_methods(self, test_labels):
-        test_labels = test_labels or ['.']
-        input_test_labels = ','.join(test_labels).split(':', 1)
-        if len(input_test_labels) == 2:
-            return map(lambda vals: [val for val in vals.split(',') if val], input_test_labels)
-        else:
-            return input_test_labels[0].split(','), []
-
     def _get_suite(self, test_labels, discover_kwargs, extra_tests, methods):
         suite = TestSuite()
         for label in test_labels:
@@ -108,8 +100,8 @@ class JunoDiscoverRunner(DiscoverRunner):
 
     def build_suite(self, test_labels=None, extra_tests=None, **kwargs):
         extra_tests = extra_tests or []
-        test_labels, methods = self._parse_labels_and_methods(test_labels)
 
+        methods = self.methods.split(',') if self.methods else []
         if methods:
             self.use_log_files = False
 
