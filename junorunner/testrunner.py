@@ -61,8 +61,7 @@ class TestSuiteRunner(JunoDiscoverRunner):
 
         if self.only_failed:
             with open(RERUN_LOG_FILE_NAME, 'r') as f:
-                test_labels = f.read().split('\n')
-            test_labels += [':']
+                test_labels = list(filter(None, f.read().split('\n')))
 
         self.setup_test_environment()
         suite = self.build_suite(test_labels, extra_tests)
