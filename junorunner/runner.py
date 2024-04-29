@@ -1,9 +1,14 @@
+import logging
 import os
+import unittest
+import warnings
 
-from django.test.runner import DiscoverRunner
-from django.test.runner import reorder_suite
+from django.test.runner import DiscoverRunner, partition_suite_by_case, filter_tests_by_tags
+from django.test.runner import reorder_tests
 from django.core import management
 from django.conf import settings
+from django.test.utils import NullTimeKeeper, TimeKeeper, iter_test_cases
+from django.utils.deprecation import RemovedInDjango50Warning
 
 from junorunner.extended_runner import TextTestRunner
 
@@ -17,108 +22,100 @@ class JunoDiscoverRunner(DiscoverRunner):
     is the use of the custom TextTestRunner, which we hook in via run_suite()
     """
 
+    test_runner = TextTestRunner
+    total_tests = 0
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.use_log_files = not self.failfast
 
-    def run_suite(self, suite, **kwargs):
-        return TextTestRunner(
-            verbosity=self.verbosity,
-            failfast=self.failfast,
-            total_tests=suite.total_tests,
-            slow_test_count=self.slow_test_count,
-            use_log_files=self.use_log_files
-        ).run(suite)
-
-    def _get_suite(self, test_labels, discover_kwargs, extra_tests, methods):
-        suite = TestSuite()
-        for label in test_labels:
-            kwargs = discover_kwargs.copy()
-            tests = None
-
-            label_as_path = os.path.abspath(label)
-
-            # if a module, or "module.ClassName[.method_name]", just run those
-            if not os.path.exists(label_as_path):
-                tests = self.test_loader.loadTestsFromName(label)
-            elif os.path.isdir(label_as_path) and not self.top_level:
-                # Try to be a bit smarter than unittest about finding the
-                # default top-level for a given directory path, to avoid
-                # breaking relative imports. (Unittest's default is to set
-                # top-level equal to the path, which means relative imports
-                # will result in "Attempted relative import in non-package.").
-
-                # We'd be happy to skip this and require dotted module paths
-                # (which don't cause this problem) instead of file paths (which
-                # do), but in the case of a directory in the cwd, which would
-                # be equally valid if considered as a top-level module or as a
-                # directory path, unittest unfortunately prefers the latter.
-
-                top_level = label_as_path
-                while True:
-                    init_py = os.path.join(top_level, '__init__.py')
-                    if os.path.exists(init_py):
-                        try_next = os.path.dirname(top_level)
-                        if try_next == top_level:
-                            # __init__.py all the way down? give up.
-                            break
-                        top_level = try_next
-                        continue
-                    break
-                kwargs['top_level_dir'] = top_level
-
-            if not (tests and tests.countTestCases()):
-                # if no tests found, it's probably a package; try discovery
-                tests = self.test_loader.discover(start_dir=label, **kwargs)
-
-                # make unittest forget the top-level dir it calculated from this
-                # run, to support running tests from two different top-levels.
-                self.test_loader._top_level_dir = None
-
-            tests = self.get_tests_defined_in_methods_or_none(tests, methods)
-            if tests:
-                suite.addTests(tests)
-
-        for test in extra_tests:
-            suite.addTest(test)
-        return suite
-
-    def _get_parallel_suite(self, suite):
-        if self.parallel > 1:
-            parallel_suite = self.parallel_test_suite(suite, self.parallel, self.failfast)
-
-            # Since tests are distributed across processes on a per-TestCase
-            # basis, there's no need for more processes than TestCases.
-            parallel_units = len(parallel_suite.subsuites)
-            if self.parallel > parallel_units:
-                self.parallel = parallel_units
-
-            # If there's only one TestCase, parallelization isn't needed.
-            if self.parallel > 1:
-                return parallel_suite
-        return suite
+    def get_test_runner_kwargs(self):
+        return {
+            "failfast": self.failfast,
+            "resultclass": self.get_resultclass(),
+            "verbosity": self.verbosity,
+            "buffer": self.buffer,
+            "total_tests": self.total_tests,
+            "slow_test_count": self.slow_test_count,
+            "use_log_files": self.use_log_files,
+        }
 
     def build_suite(self, test_labels=None, extra_tests=None, **kwargs):
-        extra_tests = extra_tests or []
-
         methods = self.methods.split(',') if self.methods else []
         if methods:
             self.use_log_files = False
 
+        if extra_tests is not None:
+            warnings.warn(
+                "The extra_tests argument is deprecated.",
+                RemovedInDjango50Warning,
+                stacklevel=2,
+            )
+        test_labels = test_labels or ["."]
+        extra_tests = extra_tests or []
+
         discover_kwargs = {}
         if self.pattern is not None:
-            discover_kwargs['pattern'] = self.pattern
+            discover_kwargs["pattern"] = self.pattern
         if self.top_level is not None:
-            discover_kwargs['top_level_dir'] = self.top_level
+            discover_kwargs["top_level_dir"] = self.top_level
+        self.setup_shuffler()
 
-        suite = self._get_suite(test_labels, discover_kwargs, extra_tests, methods)
+        all_tests = []
+        for label in test_labels:
+            tests = self.load_tests_for_label(label, discover_kwargs)
+            tests = self.get_tests_defined_in_methods_or_none(tests, methods)
+            if tests:
+                all_tests.extend(iter_test_cases(tests))
+
+        all_tests.extend(iter_test_cases(extra_tests))
+
         if self.tags or self.exclude_tags:
-            suite = filter_tests_by_tags(suite, self.tags, self.exclude_tags)
-        suite = reorder_suite(suite, self.reorder_by, self.reverse)
+            if self.tags:
+                self.log(
+                    "Including test tag(s): %s." % ", ".join(sorted(self.tags)),
+                    level=logging.DEBUG,
+                )
+            if self.exclude_tags:
+                self.log(
+                    "Excluding test tag(s): %s." % ", ".join(sorted(self.exclude_tags)),
+                    level=logging.DEBUG,
+                )
+            all_tests = filter_tests_by_tags(all_tests, self.tags, self.exclude_tags)
 
-        total_tests = len(suite._tests)
-        suite = self._get_parallel_suite(suite)
-        suite.total_tests = total_tests
+        # Put the failures detected at load time first for quicker feedback.
+        # _FailedTest objects include things like test modules that couldn't be
+        # found or that couldn't be loaded due to syntax errors.
+        test_types = (unittest.loader._FailedTest, *self.reorder_by)
+        all_tests = list(
+            reorder_tests(
+                all_tests,
+                test_types,
+                shuffler=self._shuffler,
+                reverse=self.reverse,
+            )
+        )
+        self.log("Found %d test(s)." % len(all_tests))
+        suite = self.test_suite(all_tests)
+
+        if self.parallel > 1:
+            subsuites = partition_suite_by_case(suite)
+            # Since tests are distributed across processes on a per-TestCase
+            # basis, there's no need for more processes than TestCases.
+            processes = min(self.parallel, len(subsuites))
+            # Update also "parallel" because it's used to determine the number
+            # of test databases.
+            self.parallel = processes
+            if processes > 1:
+                suite = self.parallel_test_suite(
+                    subsuites,
+                    processes,
+                    self.failfast,
+                    self.debug_mode,
+                    self.buffer,
+                )
+
+        self.total_tests = len(all_tests)
         return suite
 
     def get_tests_defined_in_methods_or_none(self, tests, methods):
