@@ -54,7 +54,7 @@ class TestSuiteRunner(JunoDiscoverRunner):
             help='List of test method names to run'
         )
 
-    def run_tests(self, test_labels, extra_tests=None, **kwargs):
+    def run_tests(self, test_labels, **kwargs):
         """
         Run the unit tests for all the test labels in the provided list.
         """
@@ -64,9 +64,7 @@ class TestSuiteRunner(JunoDiscoverRunner):
                 test_labels = list(filter(None, f.read().split('\n')))
 
         self.setup_test_environment()
-        suite = self.build_suite(test_labels, extra_tests)
-
-        print('%i tests found' % len(suite._tests))
+        suite = self.build_suite(test_labels)
 
         old_config = self.setup_databases()
         result = self.run_suite(suite)

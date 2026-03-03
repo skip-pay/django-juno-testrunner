@@ -8,7 +8,6 @@ from django.test.runner import reorder_tests
 from django.core import management
 from django.conf import settings
 from django.test.utils import NullTimeKeeper, TimeKeeper, iter_test_cases
-from django.utils.deprecation import RemovedInDjango50Warning
 
 from junorunner.extended_runner import TextTestRunner
 
@@ -40,19 +39,11 @@ class JunoDiscoverRunner(DiscoverRunner):
             "use_log_files": self.use_log_files,
         }
 
-    def build_suite(self, test_labels=None, extra_tests=None, **kwargs):
+    def build_suite(self, test_labels=None, **kwargs):
         methods = self.methods.split(',') if self.methods else []
         if methods:
             self.use_log_files = False
-
-        if extra_tests is not None:
-            warnings.warn(
-                "The extra_tests argument is deprecated.",
-                RemovedInDjango50Warning,
-                stacklevel=2,
-            )
         test_labels = test_labels or ["."]
-        extra_tests = extra_tests or []
 
         discover_kwargs = {}
         if self.pattern is not None:
@@ -67,8 +58,6 @@ class JunoDiscoverRunner(DiscoverRunner):
             tests = self.get_tests_defined_in_methods_or_none(tests, methods)
             if tests:
                 all_tests.extend(iter_test_cases(tests))
-
-        all_tests.extend(iter_test_cases(extra_tests))
 
         if self.tags or self.exclude_tags:
             if self.tags:
@@ -115,7 +104,6 @@ class JunoDiscoverRunner(DiscoverRunner):
                     self.buffer,
                 )
 
-        self.total_tests = len(all_tests)
         return suite
 
     def get_tests_defined_in_methods_or_none(self, tests, methods):

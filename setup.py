@@ -9,7 +9,7 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 setup(
     name='django-juno-testrunner',
     version='0.4.0',
-    description='A more useful (and slightly more glamorous) test runner for Django 1.6+ from the folks at YunoJuno',
+    description='A more useful (and slightly more glamorous) test runner for Django 5.2+',
     long_description=README,
     author='Steve Jalim, Hugo Rodger-Brown',
     author_email='steve@somefantastic.co.uk, hugo@yunojuno.com',
@@ -25,10 +25,10 @@ setup(
             'License :: OSI Approved :: MIT License',
             'Operating System :: OS Independent',
             'Programming Language :: Python',
-            'Programming Language :: Python :: 2',
-            'Programming Language :: Python :: 2.7',
             'Programming Language :: Python :: 3',
-            'Programming Language :: Python :: 3.4',
+            'Programming Language :: Python :: 3.10',
+            'Programming Language :: Python :: 3.11',
+            'Programming Language :: Python :: 3.12',
             'Topic :: Internet :: WWW/HTTP',
             'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
         ]
