@@ -104,6 +104,7 @@ class JunoDiscoverRunner(DiscoverRunner):
                     self.buffer,
                 )
 
+        self.total_tests = len(all_tests)
         return suite
 
     def get_tests_defined_in_methods_or_none(self, tests, methods):
